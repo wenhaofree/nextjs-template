@@ -1,239 +1,284 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Search, Star, ExternalLink, ArrowUp, Heart, ChevronRight } from "lucide-react"
+import Image from "next/image"
 import Link from "next/link"
-import { Globe, LogIn, ExternalLink, Bot, Music, Mic, Image as ImageIcon, PenSquare, Briefcase, Palette, Shirt, ShoppingBag, Video, MessageSquare, Brain, GamepadIcon, ArrowUp, Sun, Moon } from "lucide-react"
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
-import Image from 'next/image'
+import { tools } from "@/data/tools"
+import { categoryGroups, type CategoryGroup } from '@/data/categories'
+import { Header } from "@/components/layout/header"
 
 export default function Home() {
-  const [visibleTools, setVisibleTools] = useState(4)
-  const [isDarkTheme, setIsDarkTheme] = useState(true)
   const [showScrollTop, setShowScrollTop] = useState(false)
-
-  const categories = [
-    { name: "All Tools", icon: null },
-    { name: "Free", icon: null },
-    { name: "Music", icon: <Music className="w-4 h-4" /> },
-    { name: "Voice", icon: <Mic className="w-4 h-4" /> },
-    { name: "Audio", icon: <Mic className="w-4 h-4" /> },
-    { name: "Picture", icon: <ImageIcon className="w-4 h-4" /> },
-    { name: "Writing", icon: <PenSquare className="w-4 h-4" /> },
-    { name: "Office", icon: <Briefcase className="w-4 h-4" /> },
-    { name: "Design & Art", icon: <Palette className="w-4 h-4" /> },
-    { name: "Fashion", icon: <Shirt className="w-4 h-4" /> },
-    { name: "Shopping", icon: <ShoppingBag className="w-4 h-4" /> },
-    { name: "Video", icon: <Video className="w-4 h-4" /> },
-    { name: "Chatbot", icon: <MessageSquare className="w-4 h-4" /> },
-    { name: "GPTs", icon: <Brain className="w-4 h-4" /> },
-    { name: "Game", icon: <GamepadIcon className="w-4 h-4" /> },
-  ]
-
-  const tools = [
-    {
-      title: "Pokemon TCG Pocket",
-      description: "Experience the excitement of Pokemon TCG Pocket – a mobile card game for all fans!",
-      category: "Game",
-      image: "/placeholder.svg?height=200&width=400",
-      features: [
-        "Quick and easy gameplay on the go",
-        "Build your own deck with unique strategies",
-        "Open two FREE booster packs daily",
-        "Challenge players worldwide in real-time"
-      ],
-      isNew: true,
-    },
-    {
-      title: "All Sprunki Phases(1-9)",
-      description: "Play all phases of the Sprunki game online for free!",
-      category: "Game",
-      image: "/placeholder.svg?height=200&width=400",
-    },
-    {
-      title: "Sprunki",
-      description: "Sprunki is a fun and creative music game for everyone.",
-      category: "Music",
-      image: "/placeholder.svg?height=200&width=400",
-    },
-    {
-      title: "Math.bot",
-      description: "Math.bot offers instant math solutions powered by AI.",
-      category: "Education",
-      image: "/placeholder.svg?height=200&width=400",
-    },
-  ]
-
-  const showMore = () => setVisibleTools(prevVisible => prevVisible + 4)
-
-  const toggleTheme = () => {
-    setIsDarkTheme(prev => !prev)
-    document.documentElement.classList.toggle('dark')
-  }
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const [filteredTools, setFilteredTools] = useState(tools)
 
   useEffect(() => {
     const handleScroll = () => {
-      setShowScrollTop(window.pageYOffset > 300)
+      setShowScrollTop(window.scrollY > 300)
     }
 
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlParams = new URLSearchParams(window.location.search)
+      const categoryParam = urlParams.get('category')
+      
+      if (categoryParam) {
+        setSelectedCategory(categoryParam)
+        setFilteredTools(tools.filter(tool => tool.categories.includes(categoryParam)))
+      } else {
+        setSelectedCategory(null)
+        setFilteredTools(tools)
+      }
+    }
+
+    // 监听浏览器的前进/后退事件
+    window.addEventListener('popstate', handlePopState)
+
+    // 初始加载时处理 URL 参数
+    const urlParams = new URLSearchParams(window.location.search)
+    const categoryParam = urlParams.get('category')
+    if (categoryParam) {
+      setSelectedCategory(categoryParam)
+      setFilteredTools(tools.filter(tool => tool.categories.includes(categoryParam)))
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [])
+
+  const handleCategorySelect = (category: string) => {
+    if (selectedCategory === category) {
+      setSelectedCategory(null)
+      setFilteredTools(tools)
+      // 使用 pushState 更新 URL
+      window.history.pushState({ category: null }, '', '/')
+    } else {
+      setSelectedCategory(category)
+      const filtered = tools.filter(tool => tool.categories.includes(category))
+      setFilteredTools(filtered)
+      // 使用 pushState 更新 URL
+      window.history.pushState(
+        { category }, 
+        '', 
+        `/?category=${encodeURIComponent(category)}`
+      )
+    }
+  }
+
+  const handleResetCategory = () => {
+    setSelectedCategory(null)
+    setFilteredTools(tools)
+    window.history.pushState({ category: null }, '', '/')
+  }
+
+  const getCategoryCount = (category: string) => {
+    return tools.filter(tool => tool.categories.includes(category)).length
+  }
+
   return (
-    <div className={`min-h-screen ${isDarkTheme ? 'dark' : ''}`}>
-      <div className="bg-white dark:bg-black text-black dark:text-white transition-colors duration-300">
-        <header className="border-b border-gray-200 dark:border-gray-800">
-          <div className="container mx-auto px-4">
-            <div className="flex items-center justify-between h-16">
-              <div className="flex items-center space-x-8">
-                <Link className="flex items-center space-x-2" href="#">
-                  <Bot className="w-6 h-6" />
-                  <span className="font-semibold">AI With Me</span>
-                </Link>
-                <nav className="hidden md:flex items-center space-x-6">
-                  <Link className="flex items-center space-x-1 text-green-500" href="#">
-                    <Bot className="w-4 h-4" />
-                    <span>Discover</span>
-                  </Link>
-                  <Link className="flex items-center space-x-1" href="#">
-                    <Bot className="w-4 h-4" />
-                    <span>Submit AI</span>
-                  </Link>
-                  <Link href="#">Pricing</Link>
-                </nav>
-              </div>
-              <div className="flex items-center space-x-4">
-                <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200">
-                  <Globe className="w-5 h-5" />
-                </button>
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <button className="flex items-center space-x-2 px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200">
-                      <LogIn className="w-5 h-5" />
-                      <span>Login</span>
-                    </button>
-                  </SignInButton>
-                </SignedOut>
-                <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
-                </SignedIn>
-              </div>
+    <div className="min-h-screen bg-gray-900 text-gray-100">
+      <Header />
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {/* 面包屑导航 - 仅在选择了分类时显示 */}
+        {selectedCategory && (
+          <nav className="flex items-center space-x-2 text-sm mb-8">
+            <Link 
+              href="/" 
+              className="text-gray-400 hover:text-green-400 transition-colors"
+            >
+              首页
+            </Link>
+            <ChevronRight className="w-4 h-4 text-gray-600" />
+            <Link 
+              href="/categories" 
+              className="text-gray-400 hover:text-green-400 transition-colors"
+            >
+              分类
+            </Link>
+            <ChevronRight className="w-4 h-4 text-gray-600" />
+            <span className="text-green-400">{selectedCategory}</span>
+          </nav>
+        )}
+
+        {/* Hero Section */}
+        {!selectedCategory && (
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-4 text-green-400">发现最好的AI网站和AI工具</h1>
+            <p className="text-gray-400 mb-6">21180个AI工具和263个分类已被来千万大咖和工具专家验证，AI工具内容质量均持有最高级ChatGPT等大数据审核。</p>
+            <div className="max-w-2xl mx-auto relative">
+              <Input
+                placeholder="输入任意内容，使用AI提高效率，如：智能剪辑AI工具"
+                className="pl-10 py-6 bg-gray-800 border-gray-700 text-gray-100 placeholder-gray-500"
+              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500" />
+              <Button className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-green-500 hover:bg-green-600 text-black">
+                搜索
+              </Button>
             </div>
           </div>
-        </header>
+        )}
 
-        <main className="container mx-auto px-4 py-12">
-          <div className="text-center max-w-3xl mx-auto mb-12">
-            <h1 className="text-4xl font-bold mb-4">Discover thousands of AI Tools</h1>
-            <p className="text-gray-600 dark:text-gray-400 text-lg mb-8">
-              Discover the latest and best AI tools for 2024 at AI With Me, let&apos;s explore the trends in AI and make AI work for us.
-            </p>
-            <div className="flex items-center justify-center text-sm text-green-500 mb-8">
-              <Bot className="w-4 h-4 mr-2" />
-              <span>Sponsored by Sprunki Incredibox</span>
-              <ExternalLink className="w-4 h-4 ml-1" />
-            </div>
-            <input
-              className="w-full max-w-xl mx-auto px-4 py-2 rounded-md bg-transparent border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Search AI tools for me..."
-            />
-          </div>
-
-          <div className="w-full mb-8 overflow-x-auto">
-            <div className="flex space-x-2 pb-4">
-              {categories.map((category) => (
-                <button
-                  key={category.name}
-                  className="flex items-center space-x-2 whitespace-nowrap px-4 py-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
-                >
-                  {category.icon}
-                  <span>{category.name}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {tools.slice(0, visibleTools).map((tool) => (
-              <div key={tool.title} className="overflow-hidden bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
-                <div className="relative">
-                  <Image
-                    alt={tool.title}
-                    className="w-full h-48 object-cover"
-                    height={200}
-                    width={400}
-                    src={tool.image}
-                  />
-                  {tool.isNew && (
-                    <span className="absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full">
-                      NEW!
-                    </span>
-                  )}
-                </div>
-                <div className="p-4">
-                  <h3 className="text-xl font-bold mb-2 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                    {tool.title}
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    {tool.description}
-                  </p>
-                  {tool.features && (
-                    <ul className="space-y-1 mb-4">
-                      {tool.features.map((feature, idx) => (
-                        <li key={idx} className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
-                          <span className="w-1 h-1 bg-blue-500 rounded-full mr-2" />
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <div className="flex items-center justify-between mt-4">
-                    <button className="px-3 py-1 text-sm bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md">
-                      {tool.category}
-                    </button>
-                    <button className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200">
-                      <ExternalLink className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+        {/* 分类标题和工具数量 */}
+        {selectedCategory && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-green-400 mb-2">{selectedCategory}</h2>
+                <p className="text-gray-400">
+                  找到 {filteredTools.length} 个相关工具
+                </p>
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetCategory}
+                className="text-gray-400 hover:text-green-400"
+              >
+                返回全部工具
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Filter Tags - 仅在未选择分类时显示 */}
+        {!selectedCategory && (
+          <div className="flex flex-wrap gap-2 mb-8">
+            <Badge variant="secondary" className="cursor-pointer bg-gray-800 text-green-400 hover:bg-gray-700">
+              🌟 最新AI
+            </Badge>
+            <Badge variant="secondary" className="cursor-pointer bg-gray-800 text-green-400 hover:bg-gray-700">
+              🔥 最多收藏
+            </Badge>
+            <Badge variant="secondary" className="cursor-pointer bg-gray-800 text-green-400 hover:bg-gray-700">
+              👥 基于人群分
+            </Badge>
+            <Badge variant="secondary" className="cursor-pointer bg-gray-800 text-green-400 hover:bg-gray-700">
+              🎯 测试推荐
+            </Badge>
+            <Badge variant="secondary" className="cursor-pointer bg-gray-800 text-green-400 hover:bg-gray-700">
+              📱 Apps
+            </Badge>
+          </div>
+        )}
+
+        {/* Category Tabs - 仅在未选择分类时显示 */}
+        {!selectedCategory && (
+          <div className="flex flex-wrap gap-4 mb-8 text-sm">
+            {Object.values(categoryGroups).flat().slice(0, 10).map((category) => (
+              <button
+                key={category}
+                onClick={() => handleCategorySelect(category)}
+                className="text-gray-400 hover:text-green-400 hover:bg-gray-800 px-3 py-1 rounded-full"
+              >
+                {category}
+              </button>
             ))}
           </div>
-          {visibleTools < tools.length && (
-            <div className="text-center mt-8">
-              <button
-                onClick={showMore}
-                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200"
-              >
-                Show More
-              </button>
-            </div>
-          )}
-        </main>
+        )}
 
-        <div className="fixed bottom-4 right-4 flex flex-col space-y-2">
-          <button
-            onClick={toggleTheme}
-            className="p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
-            aria-label="Toggle theme"
-          >
-            {isDarkTheme ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
-          {showScrollTop && (
-            <button
-              onClick={scrollToTop}
-              className="p-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200"
-              aria-label="Scroll to top"
+        {/* Tools Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredTools.map((tool) => (
+            <Card 
+              key={tool.id} 
+              className="opacity-0 animate-fade-in-up overflow-hidden hover:shadow-lg transition-shadow bg-gray-800 border-gray-700"
+              style={{
+                animationDelay: `${(filteredTools.indexOf(tool) % 4) * 0.1}s`,
+                animationFillMode: 'forwards'
+              }}
             >
-              <ArrowUp className="h-4 w-4" />
-            </button>
-          )}
+              <Link href={tool.link} className="block">
+                <Image
+                  src={tool.imageUrl}
+                  alt={`${tool.name} preview`}
+                  width={400}
+                  height={200}
+                  className="w-full h-48 object-cover"
+                />
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-green-400">{tool.name}</h3>
+                    <ExternalLink className="w-4 h-4 text-gray-500" />
+                  </div>
+                  <p className="text-sm text-gray-400 mb-3 line-clamp-2">
+                    {tool.description}
+                  </p>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1">
+                        <Star className="w-4 h-4 fill-green-500 text-green-500" />
+                        <span className="text-sm text-gray-400">{tool.rating}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Heart className="w-4 h-4 text-pink-500" />
+                        <span className="text-sm text-gray-400">
+                          {tool.favorites.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {tool.categories.map((category) => (
+                        <Badge
+                          key={category}
+                          variant="secondary"
+                          className="text-xs bg-gray-700 text-green-400"
+                        >
+                          {category}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            </Card>
+          ))}
         </div>
-      </div>
+
+        {/* 如果没有找到工具 */}
+        {filteredTools.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-gray-400 text-lg">
+              没有找到相关工具
+            </p>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={handleResetCategory}
+              className="mt-4"
+            >
+              查看所有工具
+            </Button>
+          </div>
+        )}
+      </main>
+
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-8 right-8 bg-green-500 hover:bg-green-600 text-black p-2 rounded-full shadow-lg transition-all duration-300 ease-in-out"
+          aria-label="Scroll to top"
+        >
+          <ArrowUp className="w-6 h-6" />
+        </button>
+      )}
     </div>
   )
 }

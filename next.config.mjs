@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['your-image-domain.com'], // 添加你的图片域名
+    domains: ['cdn.toolify.ai'], // 添加允许的图片域名
   },
 }
 
