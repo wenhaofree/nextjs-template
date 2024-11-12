@@ -2,9 +2,62 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --background: 240 91% 8%;
+    --foreground: 240 100% 94%;
+    
+    --card: 240 40% 12%;
+    --card-foreground: 240 100% 94%;
+    
+    --popover: 240 40% 12%;
+    --popover-foreground: 240 100% 94%;
+    
+    --primary: 248 74% 67%;
+    --primary-foreground: 240 91% 8%;
+    
+    --secondary: 240 33% 17%;
+    --secondary-foreground: 240 100% 94%;
+    
+    --muted: 240 33% 17%;
+    --muted-foreground: 240 24% 72%;
+    
+    --accent: 240 33% 17%;
+    --accent-foreground: 240 100% 94%;
+    
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 240 100% 94%;
+    
+    --border: 240 33% 23%;
+    --input: 240 33% 17%;
+    --ring: 248 74% 67%;
+    
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
 @layer utilities {
   .animate-fade-in-up {
     animation: fadeInUp 0.5s ease-out forwards;
+  }
+
+  .bg-gradient-primary {
+    @apply bg-gradient-to-r from-[#7B68EE] to-[#4169E1];
+  }
+
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent bg-gradient-primary;
   }
 }
 
@@ -19,6 +72,35 @@
   }
 }
 
-.hover\:scale-102:hover {
-  transform: scale(1.02);
+/* 自定义滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-secondary/20;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/50 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-primary/70;
+}
+
+/* 卡片悬浮效果 */
+.card-hover-effect {
+  @apply transition-all duration-300 hover:shadow-lg hover:shadow-primary/10;
+}
+
+/* 按钮悬浮效果 */
+.button-hover-effect {
+  @apply transition-colors hover:bg-primary/90;
+}
+
+/* 链接悬浮效果 */
+.link-hover-effect {
+  @apply transition-colors hover:text-primary;
 }

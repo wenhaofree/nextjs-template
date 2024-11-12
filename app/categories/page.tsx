@@ -25,7 +25,6 @@ interface CategoryGroup {
 export default function CategoriesPage() {
   const [activeCategory, setActiveCategory] = useState('')
 
-  // 使用 useMemo 缓存分类数据
   const enrichedCategories = useMemo(() => [
     {
       title: "内容创作",
@@ -93,7 +92,7 @@ export default function CategoriesPage() {
         icon: getCategoryIcon(cat)
       }))
     }
-  ], []) // 空依赖数组，因为 categoryGroups 和 tools 是静态的
+  ], [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -112,7 +111,7 @@ export default function CategoriesPage() {
 
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
-  }, [enrichedCategories]) // 现在 enrichedCategories 是稳定的依赖
+  }, [enrichedCategories])
 
   const scrollToCategory = (categoryId: string) => {
     const element = document.getElementById(categoryId)
@@ -122,12 +121,12 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100">
+    <div className="min-h-screen bg-[#0A0A1B] text-[#E0E0FF]">
       <Header />
       
       <div className="flex pt-16">
         {/* Navigation Sidebar */}
-        <nav className="w-64 h-[calc(100vh-4rem)] bg-gray-800 p-6 fixed left-0 overflow-y-auto">
+        <nav className="w-64 h-[calc(100vh-4rem)] bg-[#12122A] p-6 fixed left-0 overflow-y-auto border-r border-[#2A2A4A]">
           <div className="space-y-6">
             {enrichedCategories.map((category, index) => (
               <div key={index}>
@@ -135,8 +134,8 @@ export default function CategoriesPage() {
                   onClick={() => scrollToCategory(category.title)}
                   className={`w-full text-left px-4 py-2 rounded transition-colors ${
                     activeCategory === category.title
-                      ? 'bg-green-500 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-green-400'
+                      ? 'bg-[#7B68EE] text-[#0A0A1B]'
+                      : 'text-[#B0B0DA] hover:bg-[#1E1E3A] hover:text-[#7B68EE]'
                   }`}
                 >
                   <span className="mr-2">{category.icon}</span>
@@ -153,42 +152,40 @@ export default function CategoriesPage() {
             <section
               key={index}
               id={category.title}
-              className="mb-16 opacity-0 translate-y-4 animate-fade-in-up"
+              className="mb-16 opacity-0 animate-fade-in-up"
+              style={{
+                animationDelay: `${index * 0.1}s`,
+                animationFillMode: 'forwards'
+              }}
             >
               <div className="mb-8">
-                <h2 className="text-3xl font-bold text-green-400 flex items-center">
+                <h2 className="text-3xl font-bold text-[#7B68EE] flex items-center">
                   <span className="mr-3">{category.icon}</span>
                   {category.title}
                 </h2>
-                <p className="text-gray-400 mt-2">{category.description}</p>
+                <p className="text-[#B0B0DA] mt-2">{category.description}</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {category.items.map((item, itemIndex) => (
                   <div
                     key={itemIndex}
-                    className="bg-gray-800 rounded-lg overflow-hidden shadow-lg hover:shadow-green-500/20 transition-all duration-300 hover:scale-102"
+                    className="bg-[#12122A] rounded-lg overflow-hidden border border-[#2A2A4A] hover:shadow-lg hover:shadow-[#7B68EE]/10 transition-all duration-300"
                   >
                     <div className="p-6">
                       <div className="flex items-center mb-4">
                         <span className="text-2xl mr-3">{item.icon}</span>
-                        <h3 className="text-xl font-semibold text-green-400">{item.name}</h3>
+                        <h3 className="text-xl font-semibold text-[#7B68EE]">{item.name}</h3>
                       </div>
-                      <p className="text-gray-400 text-sm mb-4">{item.description}</p>
+                      <p className="text-[#B0B0DA] text-sm mb-4">{item.description}</p>
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-400 text-sm">工具数量</span>
-                        <span className="text-green-500 font-bold">{item.count}</span>
+                        <span className="text-[#B0B0DA] text-sm">工具数量</span>
+                        <span className="text-[#7B68EE] font-bold">{item.count}</span>
                       </div>
                     </div>
                     <Link 
-                      href={{
-                        pathname: '/',
-                        query: { 
-                          category: encodeURIComponent(item.name),
-                          from: 'categories'
-                        }
-                      }}
-                      className="block bg-gray-700 px-6 py-3 text-green-400 hover:text-green-300 transition-colors duration-200"
+                      href={`/?category=${item.name}`}
+                      className="block bg-[#1E1E3A] px-6 py-3 text-[#7B68EE] hover:text-[#6A5ACD] hover:bg-[#2A2A4A] transition-colors duration-200"
                     >
                       查看工具 →
                     </Link>
