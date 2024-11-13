@@ -7,6 +7,9 @@ export interface Tool {
   rating: number;
   categories: string[];
   updateDate?: string;
+  submitterId?: string;
+  isPaid?: boolean;
+  status?: 'active' | 'inactive';
 }
 
 export const tools: Tool[] = [

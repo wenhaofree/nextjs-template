@@ -17,6 +17,7 @@ import { Header } from '@/components/layout/header'
 import { useUser } from '@clerk/nextjs'
 import { usePlan } from '@/hooks/usePlan'
 import { UserAPI } from '@/lib/api/user'
+import { SubmissionsAPI } from '@/lib/api/submissions'
 
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
@@ -138,31 +139,65 @@ export default function Component() {
       return
     }
 
-    // 在开发环境下直接升级版本
-    if (process.env.NODE_ENV === 'development') {
-      setIsUpdating(true)
-      try {
-        const testResult = await testPaymentSuccess(user.id, selectedPlan)
-        if (testResult) {
-          alert('版本升级成功！请查看控制台日志')
-          window.location.reload() // 刷新页面以显示新计划
-          return
-        } else {
-          alert('版本升级失败，请查看控制台错误日志')
-        }
-      } finally {
-        setIsUpdating(false)
-      }
+    if (!plan) {
+      alert('无法获取用户计划信息')
       return
     }
 
-    // 正常的支付流程代码...
-    const stripePaymentUrl = new URL('https://buy.stripe.com/test_9AQ4hH5cc0GE3Ju5kk')
-    stripePaymentUrl.searchParams.append('client_reference_id', user.id)
-    stripePaymentUrl.searchParams.append('metadata[userId]', user.id)
-    stripePaymentUrl.searchParams.append('metadata[plan]', selectedPlan)
-    
-    window.location.href = stripePaymentUrl.toString()
+    // 获取输入值
+    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement
+    const urlInput = document.querySelector('input[name="url"]') as HTMLInputElement
+    const name = nameInput?.value?.trim()
+    const url = urlInput?.value?.trim()
+
+    // 验证输入
+    if (!name || !url) {
+      alert('请填写完整信息')
+      return
+    }
+
+    try {
+      // 如果不是免费用户，保存提交数据
+      if (plan?.type !== 'free') {
+        await SubmissionsAPI.create({
+          name,
+          url,
+          userId: user.id,
+          userPlan: plan.type,
+        })
+        console.log('✅ Submission saved for paid user')
+      }
+
+      // 继续原有的支付流程...
+      if (process.env.NODE_ENV === 'development') {
+        setIsUpdating(true)
+        try {
+          const testResult = await testPaymentSuccess(user.id, selectedPlan)
+          if (testResult) {
+            alert('版本升级成功！请查看控制台日志')
+            window.location.reload()
+            return
+          } else {
+            alert('版本升级失败，请查看控制台错误日志')
+          }
+        } finally {
+          setIsUpdating(false)
+        }
+        return
+      }
+
+      // 正常的支付流程...
+      const stripePaymentUrl = new URL('https://buy.stripe.com/test_9AQ4hH5cc0GE3Ju5kk')
+      stripePaymentUrl.searchParams.append('client_reference_id', user.id)
+      stripePaymentUrl.searchParams.append('metadata[userId]', user.id)
+      stripePaymentUrl.searchParams.append('metadata[plan]', selectedPlan)
+      
+      window.location.href = stripePaymentUrl.toString()
+
+    } catch (error) {
+      console.error('❌ Error saving submission:', error)
+      alert('保存提交信息失败，请重试')
+    }
   }
 
   return (

@@ -3,14 +3,14 @@ import Stripe from 'stripe'
 import { nanoid } from 'nanoid'
 
 // 使用测试环境的 Secret Key
-const stripe = new Stripe(process.env.STRIPE_TEST_SECRET_KEY!, {
+const stripe = new Stripe(process.env.STRIPE_TEST_SECRET_KEY || '', {
   apiVersion: '2024-10-28.acacia',
 })
 
 // 测试环境的价格 ID
-const PRICE_IDS = {
+const PRICE_IDS: Record<string, string | null> = {
   'free': null,
-  'one-time': 'prod_RCxUnKVhNHxg4B', // 替换为您的测试价格 ID
+  'one-time': 'prod_RCxUnKVhNHxg4B',
   'unlimited': 'price_1Oq2xxxxxxxxxxx',
   'sponsor': 'price_1Oq2xxxxxxxxxxx',
 }
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   try {
     const { name, url, plan } = await req.json()
 
-    if (plan === 'free') {
+    if (plan === 'free' || !PRICE_IDS[plan]) {
       return NextResponse.json({ 
         sessionUrl: `/submit/success?free=true` 
       })
