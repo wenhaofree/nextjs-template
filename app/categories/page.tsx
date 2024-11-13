@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/layout/header"
+import { Footer } from "@/components/layout/footer"
 
 interface CategoryData {
   name: string
@@ -196,6 +197,7 @@ export default function CategoriesPage() {
           ))}
         </main>
       </div>
+      <Footer />
     </div>
   )
 }

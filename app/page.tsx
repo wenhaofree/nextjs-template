@@ -12,6 +12,7 @@ import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
 import { tools } from "@/data/tools"
 import { categoryGroups } from '@/data/categories'
 import { Header } from "@/components/layout/header"
+import { Footer } from "@/components/layout/footer"
 
 export default function Home() {
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -197,7 +198,7 @@ export default function Home() {
               key={tool.id} 
               className="bg-[#12122A] border-[#2A2A4A] overflow-hidden hover:shadow-lg hover:shadow-[#7B68EE]/10 transition-all duration-300"
             >
-              <Link href={tool.link} className="block">
+              <Link href={`/product?id=${tool.id}`} className="block">
                 <Image
                   src={tool.imageUrl}
                   alt={`${tool.name} preview`}
@@ -264,6 +265,8 @@ export default function Home() {
           <ArrowUp className="w-6 h-6" />
         </button>
       )}
+
+      <Footer />
     </div>
   )
 }

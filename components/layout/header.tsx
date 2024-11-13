@@ -22,6 +22,18 @@ export function Header() {
             >
               分类
             </Link>
+            <Link 
+              href="/price" 
+              className="text-sm text-[#E0E0FF] hover:text-[#7B68EE] transition-colors"
+            >
+              价格
+            </Link>
+            <Link 
+              href="/submit" 
+              className="text-sm text-[#E0E0FF] hover:text-[#7B68EE] transition-colors"
+            >
+              提交
+            </Link>
             <Link href="#" className="text-sm text-[#E0E0FF] hover:text-[#7B68EE] transition-colors">
               排行榜
             </Link>
