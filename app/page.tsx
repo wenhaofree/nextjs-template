@@ -1,270 +1,176 @@
-'use client'
-
-import { useState, useEffect } from 'react'
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { Suspense, useState } from 'react'
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Star, ExternalLink, ArrowUp, Cpu, ChevronRight } from "lucide-react"
+import { Star, ExternalLink } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs"
-import { tools } from "@/data/tools"
 import { categoryGroups } from '@/data/categories'
 import { Header } from "@/components/layout/header"
 import { Footer } from "@/components/layout/footer"
+import { getTools } from '@/app/actions'
+import { Tool } from '@/data/tools'
+import { SearchBar } from '@/components/search-bar'
+import { FallbackImage } from '@/components/ui/fallback-image'
 
-export default function Home() {
-  const [showScrollTop, setShowScrollTop] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
-  const [filteredTools, setFilteredTools] = useState(tools)
+// 工具卡片组件
+function ToolCard({ tool }: { tool: Tool }) {
+  // 将标题转换为 URL 友好的格式
+  const titleSlug = tool.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 
-  // 滚动监听
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 300)
-    }
+  return (
+    <Card 
+      key={tool.id} 
+      className="bg-[#12122A] border-[#2A2A4A] overflow-hidden hover:shadow-lg hover:shadow-[#7B68EE]/10 transition-all duration-300"
+    >
+      <Link 
+        href={`/tools/${titleSlug}`} 
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block"
+      >
+        <div className="relative w-full h-48 bg-[#1E1E3A]">
+          <FallbackImage
+            src={tool.imageUrl}
+            alt={`${tool.name} preview`}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            priority={tool.id <= 4}
+          />
+        </div>
+        <div className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-[#7B68EE]">{tool.name}</h3>
+            <ExternalLink className="w-4 h-4 text-[#8080AA]" />
+          </div>
+          <p className="text-sm text-[#B0B0DA] mb-3 line-clamp-2">
+            {tool.description}
+          </p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1">
+              <Star className="w-4 h-4 fill-[#7B68EE] text-[#7B68EE]" />
+              <span className="text-sm text-[#B0B0DA]">{tool.rating}</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {tool.categories.map((category: string) => (
+                <Badge
+                  key={category}
+                  variant="secondary"
+                  className="text-xs bg-[#1E1E3A] text-[#7B68EE]"
+                >
+                  {category}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Link>
+    </Card>
+  )
+}
 
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
+// 工具列表组件
+async function ToolsGrid() {
+  try {
+    console.log('🎯 ToolsGrid component rendering...')
+    const startTime = Date.now()
 
-  // URL 参数和浏览器历史处理
-  useEffect(() => {
-    const handlePopState = () => {
-      const urlParams = new URLSearchParams(window.location.search)
-      const categoryParam = urlParams.get('category')
-      
-      if (categoryParam) {
-        setSelectedCategory(categoryParam)
-        setFilteredTools(tools.filter(tool => tool.categories.includes(categoryParam)))
-      } else {
-        setSelectedCategory(null)
-        setFilteredTools(tools)
-      }
-    }
-
-    window.addEventListener('popstate', handlePopState)
-
-    // 初始加载时处理 URL 参数
-    const urlParams = new URLSearchParams(window.location.search)
-    const categoryParam = urlParams.get('category')
-    if (categoryParam) {
-      setSelectedCategory(categoryParam)
-      setFilteredTools(tools.filter(tool => tool.categories.includes(categoryParam)))
-    }
-
-    return () => {
-      window.removeEventListener('popstate', handlePopState)
-    }
-  }, [])
-
-  const handleCategorySelect = (category: string) => {
-    if (selectedCategory === category) {
-      setSelectedCategory(null)
-      setFilteredTools(tools)
-      window.history.pushState({ category: null }, '', '/')
-    } else {
-      setSelectedCategory(category)
-      const filtered = tools.filter(tool => tool.categories.includes(category))
-      setFilteredTools(filtered)
-      window.history.pushState(
-        { category }, 
-        '', 
-        `/?category=${encodeURIComponent(category)}`
+    const tools = await getTools()
+    
+    console.log('📊 ToolsGrid data loaded:', {
+      count: tools.length,
+      duration: `${Date.now() - startTime}ms`
+    })
+    
+    if (!tools.length) {
+      console.log('⚠️ No tools found')
+      return (
+        <div className="text-center py-12">
+          <p className="text-[#B0B0DA] text-lg">
+            暂无工具数据
+          </p>
+        </div>
       )
     }
-  }
 
-  const handleResetCategory = () => {
-    setSelectedCategory(null)
-    setFilteredTools(tools)
-    window.history.pushState({ category: null }, '', '/')
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {tools.map((tool) => (
+          <ToolCard key={tool.id} tool={tool} />
+        ))}
+      </div>
+    )
+  } catch (error) {
+    console.error('❌ Error in ToolsGrid:', error)
+    return (
+      <div className="text-center py-12">
+        <p className="text-[#B0B0DA] text-lg">
+          加载工具数据失败，请稍后重试
+        </p>
+      </div>
+    )
   }
+}
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
+// 主页组件
+export default async function Home() {
+  console.log('🏠 Home page rendering...')
+  
   return (
     <div className="min-h-screen bg-[#0A0A1B] text-[#E0E0FF]">
       <Header />
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        {/* 面包屑导航 - 仅在选择了分类时显示 */}
-        {selectedCategory && (
-          <nav className="flex items-center space-x-2 text-sm mb-8">
-            <Link 
-              href="/" 
-              className="text-[#B0B0DA] hover:text-[#7B68EE] transition-colors"
-              onClick={(e) => {
-                e.preventDefault()
-                handleResetCategory()
-              }}
+        {/* Hero Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-[#7B68EE] to-[#4169E1]">
+            发现最好的AI网站和AI工具
+          </h1>
+          <p className="text-[#B0B0DA] mb-8 max-w-2xl mx-auto">
+            21180个AI工具和263个分类已被来千万大咖和工具专家验证，AI工具内容质量均持有最高级ChatGPT等大数据审核。
+          </p>
+          <SearchBar />
+        </div>
+
+        {/* Filter Tags */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {["🌟 最新AI", "🔥 最多收藏", "👥 基于人群分", "🎯 测试推荐", "📱 Apps"].map((tag) => (
+            <Badge 
+              key={tag} 
+              variant="secondary" 
+              className="cursor-pointer bg-[#1E1E3A] text-[#7B68EE] hover:bg-[#2A2A4A] transition-colors"
             >
-              首页
-            </Link>
-            <ChevronRight className="w-4 h-4 text-[#3A3A5A]" />
-            <Link 
-              href="/categories" 
-              className="text-[#B0B0DA] hover:text-[#7B68EE] transition-colors"
-            >
-              分类
-            </Link>
-            <ChevronRight className="w-4 h-4 text-[#3A3A5A]" />
-            <span className="text-[#7B68EE]">{selectedCategory}</span>
-          </nav>
-        )}
-
-        {/* Hero Section - 仅在未选择分类时显示 */}
-        {!selectedCategory && (
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-[#7B68EE] to-[#4169E1]">
-              发现最好的AI网站和AI工具
-            </h1>
-            <p className="text-[#B0B0DA] mb-8 max-w-2xl mx-auto">
-              21180个AI工具和263个分类已被来千万大咖和工具专家验证，AI工具内容质量均持有最高级ChatGPT等大数据审核。
-            </p>
-            <div className="max-w-2xl mx-auto relative">
-              <Input
-                placeholder="输入任意内容，使用AI提高效率，如：智能剪辑AI工具"
-                className="pl-10 py-6 bg-[#1E1E3A] border-[#3A3A5A] text-[#E0E0FF] placeholder-[#8080AA]"
-              />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#8080AA]" />
-              <Button className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B]">
-                搜索
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* 分类标题和工具数量 */}
-        {selectedCategory && (
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-[#7B68EE] mb-2">{selectedCategory}</h2>
-                <p className="text-[#B0B0DA]">
-                  找到 {filteredTools.length} 个相关工具
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResetCategory}
-                className="text-[#B0B0DA] hover:text-[#7B68EE] border-[#2A2A4A] hover:bg-[#1E1E3A]"
-              >
-                返回全部工具
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Filter Tags - 仅在未选择分类时显示 */}
-        {!selectedCategory && (
-          <div className="flex flex-wrap gap-2 mb-8">
-            {["🌟 最新AI", "🔥 最多收藏", "👥 基于人群分", "🎯 测试推荐", "📱 Apps"].map((tag) => (
-              <Badge 
-                key={tag} 
-                variant="secondary" 
-                className="cursor-pointer bg-[#1E1E3A] text-[#7B68EE] hover:bg-[#2A2A4A] transition-colors"
-              >
-                {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
-
-        {/* Category Tabs - 仅在未选择分类时显示 */}
-        {!selectedCategory && (
-          <div className="flex flex-wrap gap-4 mb-12 text-sm">
-            {Object.values(categoryGroups).flat().slice(0, 10).map((category) => (
-              <button
-                key={category}
-                onClick={() => handleCategorySelect(category)}
-                className="text-[#B0B0DA] hover:text-[#7B68EE] hover:bg-[#1E1E3A] px-4 py-2 rounded-full transition-colors"
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Tools Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredTools.map((tool) => (
-            <Card 
-              key={tool.id} 
-              className="bg-[#12122A] border-[#2A2A4A] overflow-hidden hover:shadow-lg hover:shadow-[#7B68EE]/10 transition-all duration-300"
-            >
-              <Link href={`/product?id=${tool.id}`} className="block">
-                <Image
-                  src={tool.imageUrl}
-                  alt={`${tool.name} preview`}
-                  width={400}
-                  height={200}
-                  className="w-full h-48 object-cover"
-                />
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-[#7B68EE]">{tool.name}</h3>
-                    <ExternalLink className="w-4 h-4 text-[#8080AA]" />
-                  </div>
-                  <p className="text-sm text-[#B0B0DA] mb-3 line-clamp-2">
-                    {tool.description}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-1">
-                      <Star className="w-4 h-4 fill-[#7B68EE] text-[#7B68EE]" />
-                      <span className="text-sm text-[#B0B0DA]">{tool.rating}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {tool.categories.map((category) => (
-                        <Badge
-                          key={category}
-                          variant="secondary"
-                          className="text-xs bg-[#1E1E3A] text-[#7B68EE]"
-                        >
-                          {category}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </Card>
+              {tag}
+            </Badge>
           ))}
         </div>
 
-        {/* 如果没有找到工具 */}
-        {filteredTools.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-[#B0B0DA] text-lg">
-              没有找到相关工具
-            </p>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={handleResetCategory}
-              className="mt-4 text-[#B0B0DA] hover:text-[#7B68EE] border-[#2A2A4A] hover:bg-[#1E1E3A]"
+        {/* Category Tabs */}
+        <div className="flex flex-wrap gap-4 mb-12 text-sm">
+          {Object.values(categoryGroups).flat().slice(0, 10).map((category) => (
+            <button
+              key={category}
+              className="text-[#B0B0DA] hover:text-[#7B68EE] hover:bg-[#1E1E3A] px-4 py-2 rounded-full transition-colors"
             >
-              查看所有工具
-            </Button>
-          </div>
-        )}
-      </main>
+              {category}
+            </button>
+          ))}
+        </div>
 
-      {/* Scroll to Top Button */}
-      {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          className="fixed bottom-8 right-8 bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B] p-3 rounded-full shadow-lg transition-all duration-300 ease-in-out"
-          aria-label="Scroll to top"
+        {/* Tools Grid */}
+        <Suspense 
+          fallback={
+            <div className="text-center py-12">
+              <p className="text-[#B0B0DA] text-lg">加载中...</p>
+            </div>
+          }
         >
-          <ArrowUp className="w-6 h-6" />
-        </button>
-      )}
+          <ToolsGrid />
+        </Suspense>
+      </main>
 
       <Footer />
     </div>

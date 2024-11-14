@@ -1,55 +1,31 @@
 import { neon, neonConfig } from '@neondatabase/serverless'
-import { Tool } from '@/data/tools'
 
 // 配置 neon
 neonConfig.fetchConnectionCache = true
 
-// 验证数据库连接字符串
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL is not defined in environment variables')
-}
-
 // 创建数据库连接
-const sql = neon(process.env.DATABASE_URL)
+const sql = neon(process.env.DATABASE_URL!)
 
-// 初始化数据库表
-const initDb = async () => {
-  try {
-    // 创建 tools 表
-    await sql`
-      CREATE TABLE IF NOT EXISTS tools (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        image_url VARCHAR(255),
-        link VARCHAR(255) NOT NULL,
-        rating DECIMAL(2,1) DEFAULT 0,
-        categories TEXT[],
-        update_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        submitter_id VARCHAR(255),
-        is_paid BOOLEAN DEFAULT false,
-        status VARCHAR(50) DEFAULT 'pending'
-      );
-    `
-
-    // 验证表是否创建成功
-    const tableExists = await sql`
-      SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'tools'
-      );
-    `
-
-    if (tableExists[0]?.exists) {
-      console.log('✅ Database table "tools" initialized')
-    } else {
-      throw new Error('Failed to create tools table')
-    }
-
-  } catch (error) {
-    console.error('❌ Database initialization error:', error)
-    throw error
-  }
+// 工具数据类型
+export interface DbTool {
+  id: number;
+  title: string;
+  url: string;
+  image_url?: string;
+  summary?: string;
+  tags: string;
+  language_support: string;
+  favorite_count: number;
+  content_markdown?: string;
+  created_at: Date;
+  updated_at: Date;
+  status: 'active' | 'inactive' | 'pending' | 'removed' | 'featured';
+  view_count: number;
+  price_type: 'free' | 'paid' | 'freemium';
+  submit_user_id?: number;
+  last_check_time?: Date;
+  rating: number;
+  slug: string;
 }
 
 // 工具数据访问类
@@ -69,97 +45,131 @@ export class ToolsDB {
 
   private async initialize() {
     if (!this.initialized) {
-      await initDb()
+      await this.initDb()
       this.initialized = true
     }
   }
 
-  async addTool(tool: Omit<Tool, 'id'>): Promise<Tool> {
+  private async initDb() {
     try {
-      // 确保数据库已初始化
-      if (!this.initialized) {
-        await this.initialize()
-      }
+      await sql`
+        CREATE TABLE IF NOT EXISTS tools (
+          id BIGSERIAL PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          url VARCHAR(512) NOT NULL,
+          image_url VARCHAR(512),
+          summary VARCHAR(1000),
+          tags VARCHAR(255) DEFAULT '',
+          language_support VARCHAR(100) DEFAULT '',
+          favorite_count INTEGER DEFAULT 0,
+          content_markdown TEXT,
+          created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+          status VARCHAR(20) DEFAULT 'active',
+          view_count INTEGER DEFAULT 0,
+          price_type VARCHAR(20) DEFAULT 'free',
+          submit_user_id BIGINT,
+          last_check_time TIMESTAMPTZ,
+          rating NUMERIC(3,2) DEFAULT 0.0,
+          slug VARCHAR(255) NOT NULL UNIQUE,
 
-      const [newTool] = await sql`
-        INSERT INTO tools 
-        (name, description, image_url, link, rating, categories, submitter_id, is_paid, status)
-        VALUES 
-        (
-          ${tool.name},
-          ${tool.description},
-          ${tool.imageUrl},
-          ${tool.link},
-          ${tool.rating},
-          ${tool.categories},
-          ${tool.submitterId},
-          ${tool.isPaid},
-          ${tool.status || 'pending'}
-        )
-        RETURNING *;
+          CONSTRAINT url_unique UNIQUE (url),
+          CONSTRAINT rating_range CHECK (rating >= 0 AND rating <= 5.0),
+          CONSTRAINT status_values CHECK (status IN ('active', 'inactive', 'pending', 'removed', 'featured')),
+          CONSTRAINT price_type_values CHECK (price_type IN ('free', 'paid', 'freemium'))
+        );
       `
+      console.log('✅ Database initialized')
+    } catch (error) {
+      console.error('❌ Database initialization error:', error)
+      throw error
+    }
+  }
 
-      console.log('✅ Tool added to database:', newTool)
-      return this.mapDbToolToTool(newTool)
+  async addTool(tool: Omit<DbTool, 'id' | 'created_at' | 'updated_at'>): Promise<DbTool> {
+    try {
+      const [newTool] = await sql<DbTool[]>`
+        INSERT INTO tools (
+          title,
+          url,
+          image_url,
+          summary,
+          tags,
+          language_support,
+          content_markdown,
+          status,
+          price_type,
+          submit_user_id,
+          rating,
+          slug
+        ) VALUES (
+          ${tool.title},
+          ${tool.url},
+          ${tool.image_url},
+          ${tool.summary},
+          ${tool.tags},
+          ${tool.language_support},
+          ${tool.content_markdown},
+          ${tool.status || 'pending'},
+          ${tool.price_type || 'free'},
+          ${tool.submit_user_id},
+          ${tool.rating || 0},
+          LOWER(REGEXP_REPLACE(${tool.title}, '[^a-zA-Z0-9]+', '-', 'g'))
+        )
+        RETURNING *
+      `
+      return newTool
     } catch (error) {
       console.error('❌ Error adding tool:', error)
       throw error
     }
   }
 
-  async getTools(): Promise<Tool[]> {
+  async getTools(): Promise<DbTool[]> {
     try {
-      const tools = await sql<Tool[]>`
-        SELECT * FROM tools ORDER BY id ASC
+      return await sql<DbTool[]>`
+        SELECT * FROM tools 
+        WHERE status = 'active'
+        ORDER BY created_at DESC
       `
-      return tools.map(this.mapDbToolToTool)
     } catch (error) {
       console.error('❌ Error fetching tools:', error)
       return []
     }
   }
 
-  async getToolsByUser(userId: string): Promise<Tool[]> {
+  async getToolsByUser(userId: number): Promise<DbTool[]> {
     try {
-      const tools = await sql<Tool[]>`
-        SELECT * FROM tools WHERE submitter_id = ${userId}
+      return await sql<DbTool[]>`
+        SELECT * FROM tools 
+        WHERE submit_user_id = ${userId}
       `
-      return tools.map(this.mapDbToolToTool)
     } catch (error) {
       console.error('❌ Error fetching user tools:', error)
       return []
     }
   }
 
-  async getPaidTools(): Promise<Tool[]> {
+  async updateTool(id: number, updates: Partial<DbTool>): Promise<DbTool | null> {
     try {
-      const tools = await sql<Tool[]>`
-        SELECT * FROM tools WHERE is_paid = true
-      `
-      return tools.map(this.mapDbToolToTool)
-    } catch (error) {
-      console.error('❌ Error fetching paid tools:', error)
-      return []
-    }
-  }
-
-  async updateTool(id: number, updates: Partial<Tool>): Promise<Tool | null> {
-    try {
-      const [updatedTool] = await sql<Tool[]>`
+      const [updatedTool] = await sql<DbTool[]>`
         UPDATE tools 
         SET 
-          name = COALESCE(${updates.name}, name),
-          description = COALESCE(${updates.description}, description),
-          image_url = COALESCE(${updates.imageUrl}, image_url),
-          link = COALESCE(${updates.link}, link),
-          rating = COALESCE(${updates.rating}, rating),
-          categories = COALESCE(${updates.categories}::text[], categories),
+          title = COALESCE(${updates.title}, title),
+          url = COALESCE(${updates.url}, url),
+          image_url = COALESCE(${updates.image_url}, image_url),
+          summary = COALESCE(${updates.summary}, summary),
+          tags = COALESCE(${updates.tags}, tags),
+          language_support = COALESCE(${updates.language_support}, language_support),
+          content_markdown = COALESCE(${updates.content_markdown}, content_markdown),
           status = COALESCE(${updates.status}, status),
-          update_date = CURRENT_TIMESTAMP
+          price_type = COALESCE(${updates.price_type}, price_type),
+          rating = COALESCE(${updates.rating}, rating),
+          updated_at = CURRENT_TIMESTAMP
         WHERE id = ${id}
         RETURNING *
       `
-      return updatedTool ? this.mapDbToolToTool(updatedTool) : null
+      return updatedTool || null
     } catch (error) {
       console.error('❌ Error updating tool:', error)
       return null
@@ -169,43 +179,67 @@ export class ToolsDB {
   async deleteTool(id: number): Promise<boolean> {
     try {
       const result = await sql`
-        DELETE FROM tools WHERE id = ${id}
+        UPDATE tools 
+        SET status = 'removed' 
+        WHERE id = ${id}
       `
-      return result.count > 0
+      return result.length > 0
     } catch (error) {
       console.error('❌ Error deleting tool:', error)
       return false
     }
   }
 
-  private mapDbToolToTool(dbTool: Record<string, any>): Tool {
+  async incrementViewCount(id: number): Promise<void> {
     try {
-      return {
-        id: Number(dbTool.id),
-        name: String(dbTool.name),
-        description: String(dbTool.description || ''),
-        imageUrl: String(dbTool.image_url || ''),
-        link: String(dbTool.link),
-        rating: Number(dbTool.rating || 0),
-        categories: Array.isArray(dbTool.categories) ? dbTool.categories : [],
-        updateDate: dbTool.update_date?.toISOString() || new Date().toISOString(),
-        submitterId: dbTool.submitter_id,
-        isPaid: Boolean(dbTool.is_paid),
-        status: dbTool.status || 'pending'
-      }
+      await sql`
+        UPDATE tools 
+        SET view_count = view_count + 1 
+        WHERE id = ${id}
+      `
     } catch (error) {
-      console.error('❌ Error mapping database tool:', error)
-      throw new Error('Failed to map database tool')
+      console.error('❌ Error incrementing view count:', error)
     }
   }
 
-  async healthCheck(): Promise<boolean> {
+  async incrementFavoriteCount(id: number): Promise<void> {
     try {
-      await sql`SELECT 1`
-      return true
+      await sql`
+        UPDATE tools 
+        SET favorite_count = favorite_count + 1 
+        WHERE id = ${id}
+      `
     } catch (error) {
-      console.error('❌ Database health check failed:', error)
-      return false
+      console.error('❌ Error incrementing favorite count:', error)
+    }
+  }
+
+  async getToolBySlug(slug: string): Promise<DbTool | null> {
+    try {
+      const [tool] = await sql<DbTool[]>`
+        SELECT * FROM tools 
+        WHERE LOWER(REGEXP_REPLACE(slug, '[^a-z0-9]+', '-', 'g')) = ${slug}
+        LIMIT 1
+      `
+      return tool || null
+    } catch (error) {
+      console.error('❌ Error fetching tool by slug:', error)
+      return null
+    }
+  }
+
+  async getToolByTitle(title: string): Promise<DbTool | null> {
+    try {
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const [tool] = await sql<DbTool[]>`
+        SELECT * FROM tools 
+        WHERE slug = ${slug}
+        LIMIT 1
+      `
+      return tool || null
+    } catch (error) {
+      console.error('❌ Error fetching tool by title:', error)
+      return null
     }
   }
 }

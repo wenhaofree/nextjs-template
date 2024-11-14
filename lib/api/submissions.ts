@@ -1,6 +1,7 @@
 import { Tool } from '@/data/tools'
 import { PlanType } from '@/types/user'
 import { createTool } from '@/app/actions'
+import { categorizeTool } from '@/lib/utils/categorize'
 
 export interface Submission {
   id: string;
@@ -17,18 +18,23 @@ export interface Submission {
 }
 
 // 将提交转换为工具
-const submissionToTool = (submission: Submission): Omit<Tool, 'id'> => ({
-  name: submission.name,
-  description: submission.description || `${submission.name} - 提交审核中`,
-  imageUrl: submission.imageUrl || '/tools/default.png',
-  link: submission.url,
-  rating: 0,
-  categories: submission.categories || ['待分类'],
-  updateDate: new Date().toISOString(),
-  submitterId: submission.userId,
-  isPaid: submission.userPlan !== 'free',
-  status: 'inactive'
-})
+const submissionToTool = (submission: Submission): Omit<Tool, 'id'> => {
+  // 自动分类
+  const categories = categorizeTool(submission.url, submission.name)
+  
+  return {
+    name: submission.name,
+    description: submission.description || `${submission.name} - 提交审核中`,
+    imageUrl: submission.imageUrl || '/tools/default.png',
+    link: submission.url,
+    rating: 0,
+    categories, // 使用自动分类的结果
+    updateDate: new Date().toISOString(),
+    submitterId: submission.userId,
+    isPaid: submission.userPlan !== 'free',
+    status: 'inactive'
+  }
+}
 
 export const SubmissionsAPI = {
   /**
@@ -52,9 +58,10 @@ export const SubmissionsAPI = {
         const tool = submissionToTool(submission)
         const savedTool = await createTool(tool)
         
-        console.log('✅ Tool saved:', {
+        console.log('✅ Tool saved with categories:', {
           id: savedTool.id,
           name: savedTool.name,
+          categories: savedTool.categories,
           updateDate: savedTool.updateDate
         })
       }

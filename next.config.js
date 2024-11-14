@@ -1,9 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  env: {
-    DATABASE_URL: process.env.DATABASE_URL,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'cdn.aiwith.me',
+        pathname: '/**',
+      },
+    ],
+    unoptimized: true, // 如果你想完全禁用图片优化
   },
-  // ... 其他配置
 }
 
 module.exports = nextConfig 

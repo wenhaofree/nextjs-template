@@ -1,4 +1,6 @@
 export const API_ENDPOINTS = {
+  tools: '/api/tools',
+  toolDetails: (slug: string) => `/api/tools/${slug}`,
   updatePlan: '/api/user/update-plan',
   getPlan: '/api/user/plan',
   webhook: '/api/stripe/webhook'

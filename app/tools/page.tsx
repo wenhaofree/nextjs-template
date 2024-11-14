@@ -4,12 +4,11 @@ import { useSearchParams } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Share2, ExternalLink, Star, ArrowRight, Twitter, Facebook, Linkedin, Mail, Link as LinkIcon } from 'lucide-react'
+import { ExternalLink, Star, Twitter, Facebook, Linkedin, Mail, Link as LinkIcon } from 'lucide-react'
 import Image from "next/image"
 import Link from "next/link"
 import { tools } from "@/data/tools"
 import { Header } from "@/components/layout/header"
-import type { Tool } from "@/data/tools"
 import { Footer } from "@/components/layout/footer"
 
 export default function ProductPage() {

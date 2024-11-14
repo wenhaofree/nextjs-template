@@ -94,10 +94,10 @@ export class ToolsStorage {
     )
   }
 
-  async updateTool(id: number, updates: Partial<Tool>): Promise<Tool | null> {
-    const index = this.data.tools.findIndex(t => t.id === id)
+  async updateTool(slug: string, updates: Partial<Tool>): Promise<Tool | null> {
+    const index = this.data.tools.findIndex(t => t.id === slug)
     if (index === -1) {
-      console.log('⚠️ Tool not found:', id)
+      console.log('⚠️ Tool not found:', slug)
       return null
     }
 
@@ -111,9 +111,9 @@ export class ToolsStorage {
     return this.data.tools[index]
   }
 
-  async deleteTool(id: number): Promise<boolean> {
+  async deleteTool(slug: string): Promise<boolean> {
     const initialLength = this.data.tools.length
-    this.data.tools = this.data.tools.filter(t => t.id !== id)
+    this.data.tools = this.data.tools.filter(t => t.id !== slug)
     
     if (this.data.tools.length === initialLength) {
       return false
