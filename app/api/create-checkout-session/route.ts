@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import type { PlanType } from '@/types/user'
 
 const stripe = new Stripe(process.env.STRIPE_TEST_SECRET_KEY!, {
   apiVersion: process.env.STRIPE_API_VERSION as '2024-10-28.acacia',
 })
 
 const PRICE_IDS = {
-  'one-time': 'price_1QKXZRF6tgmitLrXDNiaqwY0',    // $16.9
-  'unlimited': 'price_1QKcf7F6tgmitLrX8duAHtxF',   // $24.9
-  'sponsor': 'price_1QKcYKF6tgmitLrXEUPnogCL'      // $39.9
+  'one-time': 'price_1QKXZRF6tgmitLrXDNiaqwY0',    // $16.9 (one-time price)
+  'unlimited': 'price_1QKcf7F6tgmitLrX8duAHtxF',   // $24.9 (subscription price)
+  'sponsor': 'price_1QKcYKF6tgmitLrXEUPnogCL'      // $39.9 (subscription price)
 } as const
 
 export async function POST(req: Request) {
@@ -39,14 +38,17 @@ export async function POST(req: Request) {
       )
     }
 
+    const mode = planType === 'one-time' ? 'payment' : 'subscription'
+
     console.log('Creating checkout session:', {
       userId,
       planType,
-      priceId
+      priceId,
+      mode
     })
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode,
       payment_method_types: ['card'],
       line_items: [
         {
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('❌ Error creating checkout session:', error)
     return NextResponse.json(
-      { error: 'Error creating checkout session' },
+      { error: error instanceof Error ? error.message : 'Error creating checkout session' },
       { status: 500 }
     )
   }

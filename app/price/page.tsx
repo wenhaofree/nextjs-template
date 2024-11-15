@@ -6,15 +6,61 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Check, Globe, LinkIcon, Languages, CreditCard } from 'lucide-react'
 import { useAuth, SignInButton } from "@clerk/nextjs"
+import { useState } from "react"
+import { useUser } from "@clerk/nextjs"
+import { toast } from "sonner"
 
 export default function PricePage() {
   const { isSignedIn } = useAuth()
+  const { user } = useUser()
+  const [isLoading, setIsLoading] = useState<string | null>(null)
 
-  const handleGetNow = (planName: string) => {
-    if (isSignedIn) {
-      // 已登录，处理购买逻辑
-      console.log(`Processing purchase for plan: ${planName}`)
-      // TODO: 实现购买逻辑
+  const handleGetNow = async (planName: string) => {
+    if (!isSignedIn || !user) return
+
+    try {
+      setIsLoading(planName)
+      
+      // Convert plan name to plan type for API
+      const planType = planName === "一次性提交" ? "one-time" : 
+                      planName === "无限提交AI" ? "unlimited" :
+                      planName === "赞助" ? "sponsor" : "free"
+      
+      if (planType === "free") {
+        // Handle free plan signup
+        toast.success("成功注册免费计划")
+        return
+      }
+
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          planType,
+          submission: {
+            name: "", // These will be filled in later
+            url: ""
+          }
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || '支付创建失败')
+      }
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url
+      
+    } catch (error) {
+      console.error('Payment error:', error)
+      toast.error(error instanceof Error ? error.message : '支付过程中出现错误')
+    } finally {
+      setIsLoading(null)
     }
   }
 
@@ -159,15 +205,16 @@ export default function PricePage() {
                 <Button 
                   className="w-full bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B]"
                   onClick={() => handleGetNow(plan.name)}
+                  disabled={isLoading === plan.name}
                 >
-                  Get Now
+                  {isLoading === plan.name ? "处理中..." : "立即获取"}
                 </Button>
               ) : (
                 <SignInButton mode="modal">
                   <Button 
                     className="w-full bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B]"
                   >
-                    Get Now
+                    立即获取
                   </Button>
                 </SignInButton>
               )}
