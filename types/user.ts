@@ -1,7 +1,5 @@
-export type PlanType = 'free' | 'one-time' | 'unlimited' | 'sponsor'
+export type PlanType = 'free' | 'pro' | 'enterprise';
 
 export interface UserPlan {
   type: PlanType
-  startDate: string
-  endDate?: string
 } 

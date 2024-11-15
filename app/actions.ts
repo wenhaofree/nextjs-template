@@ -10,6 +10,18 @@ neonConfig.fetchConnectionCache = true
 // 创建数据库连接
 const sql = neon(process.env.DATABASE_URL!)
 
+// 定义允许的价格类型
+const ALLOWED_PRICE_TYPES = ['free', 'paid', 'premium', 'sponsor'] as const
+type AllowedPriceType = typeof ALLOWED_PRICE_TYPES[number]
+
+// 价格类型映射
+const PRICE_TYPE_MAP: Record<string, AllowedPriceType> = {
+  'free': 'free',
+  'one-time': 'paid',
+  'unlimited': 'premium',
+  'sponsor': 'sponsor'
+}
+
 /**
  * 从数据库获取工具数据
  */
@@ -57,54 +69,109 @@ function mapDbToolToTool(dbTool: DbTool): Tool {
   }
 }
 
+// 添加 slug 生成函数
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-') // 将非字母数字字符替换为连字符
+    .replace(/^-+|-+$/g, '') // 移除首尾连字符
+    .substring(0, 50) // 限制长度
+}
+
 /**
  * 创建新工具
  */
-export async function createTool(data: { name: string, link: string }): Promise<DbTool> {
+export async function createTool(data: { 
+  name: string, 
+  link: string,
+  userId?: string | number, // 支持 string 或 number 类型
+  status?: 'pending' | 'active' | 'inactive',
+  priceType?: string
+}): Promise<DbTool | null> {
   try {
-    console.log('📝 Creating new tool:', data)
+    // 验证必要字段
+    if (!data.name?.trim() || !data.link?.trim()) {
+      throw new Error('Missing required fields')
+    }
 
-    // 从名称中提取标签
-    const defaultTags = data.name.toLowerCase().includes('ai') ? 'AI工具' : '其他'
+    // 验证 userId 格式
+    if (data.userId) {
+      const userIdStr = String(data.userId)
+      if (typeof data.userId === 'string' && !userIdStr.startsWith('user_')) {
+        console.log('⚠️ Non-Clerk user ID format:', data.userId)
+      }
+    }
 
+    console.log('📝 Creating tool:', {
+      name: data.name,
+      url: data.link,
+      userId: data.userId,
+      status: data.status,
+      priceType: data.priceType
+    })
+
+    const priceType = data.priceType || 'free'
+    const toolStatus = data.status || (priceType === 'free' ? 'pending' : 'active')
+    const slug = `${generateSlug(data.name)}-${Date.now()}`
+    const mappedPriceType = PRICE_TYPE_MAP[priceType] || 'free'
+
+    // 检查 URL 是否已存在
+    const existingTool = await sql<DbTool[]>`
+      SELECT id FROM tools WHERE url = ${data.link.trim()}
+    `
+
+    if (existingTool.length > 0) {
+      console.log('⚠️ Tool with this URL already exists')
+      return null
+    }
+
+    // 执行插入操作
     const [newTool] = await sql<DbTool[]>`
       INSERT INTO tools (
-        title,              -- 工具标题
-        url,                -- 工具链接
-        image_url,          -- 图片URL
-        summary,            -- 工具简介
-        tags,              -- 标签（逗号分隔）
-        language_support,   -- 支持的语言
-        content_markdown,   -- Markdown格式的详细内容
-        price_type,        -- 价格类型
-        rating             -- 初始评分
+        title,
+        url,
+        slug,
+        image_url,
+        summary,
+        tags,
+        language_support,
+        content_markdown,
+        price_type,
+        rating,
+        status,
+        submit_user_id    -- 存储 userId（string 类型）
       ) VALUES (
-        ${data.name},                        -- 标题：直接使用提交的名称
-        ${data.link},                        -- URL：直接使用提交的链接
-        ${null},                             -- 图片URL：暂时为空
-        ${`${data.name} - AI工具简介`},      -- 简介：生成默认简介
-        ${defaultTags},                      -- 标签：设置默认标签
-        ${'中文,英文'},                      -- 语言支持：默认支持中英文
-        ${`# ${data.name}\n\n这是一个AI工具`}, -- Markdown内容：生成默认内容
-        ${'free'},                           -- 价格类型：默认免费
-        ${4.0}                               -- 评分：默认4分
+        ${data.name.trim()},
+        ${data.link.trim()},
+        ${slug},
+        ${null},
+        ${`${data.name.trim()} - AI工具简介`},
+        ${'AI工具'},
+        ${'中文,英文'},
+        ${`# ${data.name.trim()}\n\n这是一个AI工具`},
+        ${mappedPriceType},
+        ${4.0},
+        ${toolStatus},
+        ${data.userId ? String(data.userId) : null}
       )
       RETURNING *
     `
 
-    console.log('✅ Tool created:', {
+    console.log('✅ Tool created successfully:', {
       id: newTool.id,
       title: newTool.title,
-      url: newTool.url,
-      tags: newTool.tags,
-      price_type: newTool.price_type,
-      created_at: newTool.created_at
+      status: newTool.status,
+      userId: newTool.submit_user_id
     })
 
     return newTool
   } catch (error) {
-    console.error('❌ Error creating tool:', error)
-    throw new Error('Failed to create tool')
+    console.error('❌ Error creating tool:', {
+      error,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      data
+    })
+    return null
   }
 }
 
@@ -138,7 +205,8 @@ export async function getToolsByUser(userId: string): Promise<Tool[]> {
   try {
     const dbTools = await sql<DbTool[]>`
       SELECT * FROM tools 
-      WHERE submit_user_id = ${parseInt(userId)}
+      WHERE submit_user_id = ${userId}
+      ORDER BY created_at DESC
     `
     return dbTools.map(mapDbToolToTool)
   } catch (error) {

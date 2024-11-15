@@ -21,8 +21,8 @@ export interface DbTool {
   updated_at: Date;
   status: 'active' | 'inactive' | 'pending' | 'removed' | 'featured';
   view_count: number;
-  price_type: 'free' | 'paid' | 'freemium';
-  submit_user_id?: number;
+  price_type: 'free' | 'one-time' | 'unlimited' |'sponsor';
+  submit_user_id?: string;
   last_check_time?: Date;
   rating: number;
   slug: string;

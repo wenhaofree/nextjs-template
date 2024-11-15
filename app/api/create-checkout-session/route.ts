@@ -1,67 +1,78 @@
 import { NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { nanoid } from 'nanoid'
+import type { PlanType } from '@/types/user'
 
-// 使用测试环境的 Secret Key
-const stripe = new Stripe(process.env.STRIPE_TEST_SECRET_KEY || '', {
-  apiVersion: '2024-10-28.acacia',
+const stripe = new Stripe(process.env.STRIPE_TEST_SECRET_KEY!, {
+  apiVersion: process.env.STRIPE_API_VERSION as '2024-10-28.acacia',
 })
 
-// 测试环境的价格 ID
-const PRICE_IDS: Record<string, string | null> = {
-  'free': null,
-  'one-time': 'prod_RCxUnKVhNHxg4B',
-  'unlimited': 'price_1Oq2xxxxxxxxxxx',
-  'sponsor': 'price_1Oq2xxxxxxxxxxx',
-}
+const PRICE_IDS = {
+  'one-time': 'price_1QKXZRF6tgmitLrXDNiaqwY0',    // $16.9
+  'unlimited': 'price_1QKcf7F6tgmitLrX8duAHtxF',   // $24.9
+  'sponsor': 'price_1QKcYKF6tgmitLrXEUPnogCL'      // $39.9
+} as const
 
 export async function POST(req: Request) {
   try {
-    const { name, url, plan } = await req.json()
+    const { userId, planType, submission } = await req.json()
 
-    if (plan === 'free' || !PRICE_IDS[plan]) {
-      return NextResponse.json({ 
-        sessionUrl: `/submit/success?free=true` 
-      })
+    if (!userId || !planType) {
+      return NextResponse.json(
+        { error: 'Missing userId or planType' },
+        { status: 400 }
+      )
     }
 
-    const referenceId = nanoid()
+    if (planType === 'free') {
+      return NextResponse.json(
+        { error: 'Free plan does not require payment' },
+        { status: 400 }
+      )
+    }
 
-    // 创建测试环境的 Checkout Session
+    const priceId = PRICE_IDS[planType as keyof typeof PRICE_IDS]
+    
+    if (!priceId) {
+      return NextResponse.json(
+        { error: 'Invalid plan type' },
+        { status: 400 }
+      )
+    }
+
+    console.log('Creating checkout session:', {
+      userId,
+      planType,
+      priceId
+    })
+
     const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
       payment_method_types: ['card'],
       line_items: [
         {
-          price: PRICE_IDS[plan as keyof typeof PRICE_IDS],
+          price: priceId,
           quantity: 1,
         },
       ],
-      mode: plan === 'unlimited' ? 'subscription' : 'payment',
-      success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/submit/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/submit`,
-      client_reference_id: referenceId,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/submit/success?session_id={CHECKOUT_SESSION_ID}&submission_name=${encodeURIComponent(submission.name)}&submission_url=${encodeURIComponent(submission.url)}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/submit`,
+      client_reference_id: userId,
       metadata: {
-        name,
-        url,
-        plan,
+        userId,
+        planType,
+        submissionName: submission.name,
+        submissionUrl: submission.url
       },
-      payment_intent_data: {
-        setup_future_usage: plan === 'unlimited' ? 'off_session' : undefined,
-      },
-      allow_promotion_codes: true,
-      custom_fields: [
-        {
-          key: 'remarks',
-          label: { type: 'custom', custom: '备注信息（可选）' },
-          type: 'text',
-          optional: true,
-        },
-      ],
     })
 
-    return NextResponse.json({ sessionUrl: session.url })
+    console.log('✅ Checkout session created:', {
+      sessionId: session.id,
+      url: session.url
+    })
+
+    return NextResponse.json({ url: session.url })
   } catch (error) {
-    console.error('Error creating checkout session:', error)
+    console.error('❌ Error creating checkout session:', error)
     return NextResponse.json(
       { error: 'Error creating checkout session' },
       { status: 500 }

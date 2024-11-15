@@ -1,0 +1,12 @@
+model Submission {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  userId    String
+  status    String   @default("pending")
+  planType  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+} 

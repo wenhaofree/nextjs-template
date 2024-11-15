@@ -1,6 +1,5 @@
 import { ClerkUser } from '@/types/clerk'
 import { UserPlan } from '@/types/user'
-import { API_ENDPOINTS } from '@/lib/constants'
 
 export const updateUserPlan = async (userId: string, plan: UserPlan): Promise<ClerkUser> => {
   const response = await fetch(`https://api.clerk.com/v1/users/${userId}`, {

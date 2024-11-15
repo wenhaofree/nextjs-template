@@ -18,6 +18,7 @@ import { useUser } from '@clerk/nextjs'
 import { usePlan } from '@/hooks/usePlan'
 import { UserAPI } from '@/lib/api/user'
 import { SubmissionsAPI } from '@/lib/api/submissions'
+import { SignInButton } from "@clerk/nextjs";
 
 const copyToClipboard = (text: string) => {
   navigator.clipboard.writeText(text)
@@ -39,11 +40,104 @@ const testPaymentSuccess = async (userId: string, planType: string) => {
   }
 }
 
+// 将提交数据的逻辑移到一个独立的函数
+const saveSubmission = async (formData: { name: string, url: string }, userId: string, planType: string) => {
+  try {
+    await SubmissionsAPI.create({
+      name: formData.name.trim(),
+      url: formData.url.trim(),
+      userId: userId,
+      userPlan: planType,
+    })
+    console.log('✅ Submission saved successfully')
+    return true
+  } catch (error) {
+    console.error('❌ Error saving submission:', error)
+    return false
+  }
+}
+
+// Add URL validation helper function
+const isValidUrl = (url: string) => {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// 在 errors 状态下方添加错误提示组件
+const ErrorMessage = ({ message }: { message: string }) => {
+  if (!message) return null;
+  return (
+    <p className="text-red-500 text-sm mt-1">{message}</p>
+  );
+};
+
 export default function Component() {
   const { user } = useUser()
-  const { plan, isLoading: isPlanLoading } = usePlan()
+  const { plan, isLoading: isPlanLoading, refreshPlan } = usePlan()
   const [selectedPlan, setSelectedPlan] = useState('free')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    url: ''
+  })
+
+  // Add URL validation state
+  const [errors, setErrors] = useState({
+    name: '',
+    url: ''
+  });
+
+  // 修改表单验证逻辑
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+
+    // 实时验证
+    if (name === 'name') {
+      if (!value.trim()) {
+        setErrors(prev => ({
+          ...prev,
+          name: '工具名称不能为空'
+        }));
+      } else if (value.trim().length < 2) {
+        setErrors(prev => ({
+          ...prev,
+          name: '工具名称至少需要2个字符'
+        }));
+      } else {
+        setErrors(prev => ({
+          ...prev,
+          name: ''
+        }));
+      }
+    }
+
+    if (name === 'url') {
+      if (!value.trim()) {
+        setErrors(prev => ({
+          ...prev,
+          url: '网址不能为空'
+        }));
+      } else if (!isValidUrl(value.trim())) {
+        setErrors(prev => ({
+          ...prev,
+          url: '请输入有效的网址 (例如: https://example.com)'
+        }));
+      } else {
+        setErrors(prev => ({
+          ...prev,
+          url: ''
+        }));
+      }
+    }
+  };
 
   const features = [
     {
@@ -132,77 +226,60 @@ export default function Component() {
     },
   ]
 
+  // 修改 handleSubmit 函数
   const handleSubmit = async () => {
-    if (!user) {
-      alert('请先登录')
-      window.location.href = '/sign-in'
-      return
-    }
-
-    if (!plan) {
-      alert('无法获取用户计划信息')
-      return
-    }
-
-    // 获取输入值
-    const nameInput = document.querySelector('input[name="name"]') as HTMLInputElement
-    const urlInput = document.querySelector('input[name="url"]') as HTMLInputElement
-    const name = nameInput?.value?.trim()
-    const url = urlInput?.value?.trim()
-
-    // 验证输入
-    if (!name || !url) {
-      alert('请填写完整信息')
-      return
-    }
+    if (!user) return
 
     try {
-      // 如果不是免费用户，保存提交数据
-      if (plan?.type !== 'free') {
-        await SubmissionsAPI.create({
-          name,
-          url,
-          userId: user.id,
-          userPlan: plan.type,
-        })
-        console.log('✅ Submission saved for paid user')
-      }
-
-      // 继续原有的支付流程...
-      if (process.env.NODE_ENV === 'development') {
-        setIsUpdating(true)
-        try {
-          const testResult = await testPaymentSuccess(user.id, selectedPlan)
-          if (testResult) {
-            alert('版本升级成功！请查看控制台日志')
-            window.location.reload()
-            return
-          } else {
-            alert('版本升级失败，请查看控制台错误日志')
-          }
-        } finally {
-          setIsUpdating(false)
+      // 如果用户已经是付费计划，直接提交
+      if (plan?.type && ['unlimited', 'sponsor'].includes(plan.type)) {
+        const saved = await saveSubmission(formData, user.id, plan.type)
+        if (saved) {
+          alert('提交成功！')
+          // 可以选择重置表单或跳转到成功页面
+          return
         }
-        return
       }
 
-      // 正常的支付流程...
-      const stripePaymentUrl = new URL('https://buy.stripe.com/test_9AQ4hH5cc0GE3Ju5kk')
-      stripePaymentUrl.searchParams.append('client_reference_id', user.id)
-      stripePaymentUrl.searchParams.append('metadata[userId]', user.id)
-      stripePaymentUrl.searchParams.append('metadata[plan]', selectedPlan)
-      
-      window.location.href = stripePaymentUrl.toString()
+      // 否则，创建支付会话
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          planType: selectedPlan,
+          submission: {
+            name: formData.name.trim(),
+            url: formData.url.trim(),
+          }
+        }),
+      })
 
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create checkout session')
+      }
+
+      console.log('💳 Redirecting to Stripe:', {
+        userId: user.id,
+        planType: selectedPlan,
+        toolName: formData.name,
+        toolUrl: formData.url
+      })
+
+      window.location.href = data.url
     } catch (error) {
-      console.error('❌ Error saving submission:', error)
-      alert('保存提交信息失败，请重试')
+      console.error('❌ Error during submission:', error)
+      alert('提交失败，请重试')
     }
   }
 
   return (
     <div className="min-h-screen bg-[#0A0A1B] text-[#E0E0FF]">
-    <Header/>
+      <Header/>
       <main className="container mx-auto px-4 py-12">
         {/* Hero Section */}
         <div className="text-center mb-16">
@@ -233,16 +310,31 @@ export default function Component() {
         {/* Submission Form */}
         <div className="max-w-2xl mx-auto mb-16">
           <div className="space-y-4">
-            <Input
-              name="name"
-              placeholder="网站名称 e.g. AI With Me"
-              className="bg-[#12122A] border-[#2A2A4A] text-[#E0E0FF] placeholder:text-[#B0B0DA]"
-            />
-            <Input
-              name="url"
-              placeholder="网站地址 e.g. https://iwith.me/"
-              className="bg-[#12122A] border-[#2A2A4A] text-[#E0E0FF] placeholder:text-[#B0B0DA]"
-            />
+            <div>
+              <Input
+                name="name"
+                value={formData.name}
+                onChange={handleInputChange}
+                placeholder="网站名称 e.g. AI With Me"
+                className={`bg-[#12122A] border-[#2A2A4A] text-[#E0E0FF] placeholder:text-[#B0B0DA] ${
+                  errors.name ? 'border-red-500' : ''
+                }`}
+              />
+              <ErrorMessage message={errors.name} />
+            </div>
+            
+            <div>
+              <Input
+                name="url"
+                value={formData.url}
+                onChange={handleInputChange}
+                placeholder="网站地址 e.g. https://iwith.me/"
+                className={`bg-[#12122A] border-[#2A2A4A] text-[#E0E0FF] placeholder:text-[#B0B0DA] ${
+                  errors.url ? 'border-red-500' : ''
+                }`}
+              />
+              <ErrorMessage message={errors.url} />
+            </div>
           </div>
 
           {/* Plan Selection */}
@@ -315,13 +407,34 @@ export default function Component() {
               </p>
             </div>
           )}
-          <Button 
-            onClick={handleSubmit}
-            disabled={isUpdating}
-            className="w-full mt-8 bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B] disabled:opacity-50"
-          >
-            {isUpdating ? '版本升级中...' : (process.env.NODE_ENV === 'development' ? '测试版本升级' : '提交')}
-          </Button>
+
+          {(errors.name || errors.url) && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-md">
+              <p className="text-red-500 text-sm font-medium mb-1">请修正以下问题：</p>
+              <ul className="list-disc list-inside text-sm text-red-400">
+                {errors.name && <li>{errors.name}</li>}
+                {errors.url && <li>{errors.url}</li>}
+              </ul>
+            </div>
+          )}
+
+          {user ? (
+            <Button 
+              onClick={handleSubmit}
+              disabled={isUpdating || !formData.name.trim() || !formData.url.trim()}
+              className="w-full mt-8 bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B] disabled:opacity-50"
+            >
+              {isUpdating ? '处理中...' : '提交'}
+            </Button>
+          ) : (
+            <SignInButton mode="modal">
+              <Button 
+                className="w-full mt-8 bg-[#7B68EE] hover:bg-[#6A5ACD] text-[#0A0A1B]"
+              >
+                登录以提交
+              </Button>
+            </SignInButton>
+          )}
         </div>
 
         {/* FAQ Section */}
