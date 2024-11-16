@@ -1,8 +1,7 @@
-import { Suspense, useState } from 'react'
+import { Suspense } from 'react'
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Star, ExternalLink } from "lucide-react"
-import Image from "next/image"
 import Link from "next/link"
 import { categoryGroups } from '@/data/categories'
 import { Header } from "@/components/layout/header"
